@@ -454,10 +454,10 @@ if __name__ == '__main__':
     logging.info("Completed traversal and processing.")
     if sigint_received:
         sys.exit(1)
-    logging.info(f"Starting scan and process muili-disc album in base path: {base_dir}")
-    process_muity_disc_albums(base_dir)
-    if sigint_received:
-        sys.exit(1)
+    # logging.info(f"Starting scan and process muili-disc album in base path: {base_dir}")
+    # process_muity_disc_albums(base_dir)
+    # if sigint_received:
+    #     sys.exit(1)
 #The following line will create a separated folder for each album and copy non-audio files to each new folder. It may take a lot of extra disk space and not fully tested. Remove # if you need.
 #    logging.info(f"Starting scan and process mixed album in base path: {base_dir}")
 #    scan_and_process_mixed_album(base_dir)

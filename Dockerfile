@@ -26,7 +26,9 @@ WORKDIR /app
 ADD requirements.txt /app
 RUN python3 -m pip install -r requirements.txt
 
-ADD split.py /app
+ADD *.py .
+
+ADD bin /usr/local/bin
 
 WORKDIR /workdir
 
