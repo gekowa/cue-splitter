@@ -1,3 +1,4 @@
+import argparse
 import sys
 import os
 import subprocess
@@ -331,7 +332,7 @@ def delete_invalid_files(directory):
             except Exception as e:
                 logging.error(f"Error deleting file {file}: {e}")
 
-def handle_size_increase(directory, initial_size):
+def handle_size_increase(directory, initial_size, skip_filename_check=False):
     """Handle the case where the directory size increases significantly."""
     directory = Path(directory).resolve()
     final_size = get_directory_size(directory)
@@ -339,11 +340,11 @@ def handle_size_increase(directory, initial_size):
     if final_size >= 1.5 * initial_size:
         avg_size = get_average_audio_file_size(directory)
         for file in directory.glob('*'):
-            if is_audio_file(file) and file.stat().st_size > avg_size and valid_filename(file):
+            if is_audio_file(file) and file.stat().st_size > avg_size and (skip_filename_check or valid_filename(file)):
                 file.unlink()
                 logging.info(f"Deleted file {file} due to exceeding average size.")
 
-def process_directory(directory):
+def process_directory(directory, skip_filename_check=False):
     """Process each directory for audio files and CUE files."""
     global sigint_received
     if sigint_received:
@@ -356,7 +357,7 @@ def process_directory(directory):
             logging.info(f".processing file exists in {directory}. Deleting invalid files.")
             delete_invalid_files(path)
         else:
-            audio_files = [f for f in path.glob('*') if is_audio_file(f) and valid_filename(f)]
+            audio_files = [f for f in path.glob('*') if is_audio_file(f) and (skip_filename_check or valid_filename(f))]
             if not audio_files:
                 logging.info(f"No valid audio files found in {directory}, skipping.")
                 return  # No valid audio files, skip this directory
@@ -380,7 +381,7 @@ def process_directory(directory):
                 logging.info(f"Running split2flac in {directory}")
                 subprocess.run(['split2flac', './', '-of', '(@track) [@performer] @title.@ext', '-nC', '-F'], check=True)
                 # Handle size increase only if split2flac runs successfully
-                handle_size_increase(path, initial_size)
+                handle_size_increase(path, initial_size, skip_filename_check=skip_filename_check)
                 logging.info(f"Finished processing directory {directory}")
                 if processing_file.exists() and not sigint_received:
                     logging.info(f"Removing .processing file in {directory}")
@@ -410,7 +411,7 @@ def process_directory(directory):
             except Exception as unlink_error:
                 logging.error(f"Error removing .processing file in finally block: {unlink_error}")
 
-def traverse_directories(base_directory):
+def traverse_directories(base_directory, skip_filename_check=False):
     """Walk through all subdirectories and process them recursively."""
     global sigint_received
     base_directory = Path(base_directory).resolve()
@@ -424,7 +425,7 @@ def traverse_directories(base_directory):
                 logging.info(f"Skipping directory {root_path} (name matches 'Scans' or 'scan')")
                 continue
             try:
-                process_directory(root_path)
+                process_directory(root_path, skip_filename_check=skip_filename_check)
                 folder_count += 1
             except InterruptException:
                 logging.info(f"InterruptException caught, stopping traversal.")
@@ -439,14 +440,23 @@ def traverse_directories(base_directory):
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, handle_sigint)
     
-    if len(sys.argv) != 2:
-        print("Usage: python split.py <directory>")
-        sys.exit(1)
-    base_dir = Path(sys.argv[1]).resolve()
+    parser = argparse.ArgumentParser(
+        description='Recursively split CUE/audio files and clean up original audio.',
+        epilog='Example: %(prog)s --skip-filename-check /path/to/music',
+    )
+    parser.add_argument('directory', type=Path, help='Base directory to scan recursively.')
+    parser.add_argument(
+        '--skip-filename-check',
+        action='store_true',
+        help='Skip filename checks when selecting directories and deleting oversized audio '
+             'after splitting (default: filename checks enabled).',
+    )
+    args = parser.parse_args()
+    base_dir = args.directory.resolve()
     logging.info(f"Starting traversal from base directory {base_dir}")
     
     try:
-        traverse_directories(base_dir)
+        traverse_directories(base_dir, skip_filename_check=args.skip_filename_check)
     except InterruptException:
         logging.info("Script interrupted by SIGINT.")
         sys.exit(1)
